@@ -18,6 +18,7 @@
         </div>
       </div>
       <div class="header-right">
+        <span class="header-label">AI MONITOR</span>
         <button id="btn-auto-tip" class="btn-toggle" title="Toggle Auto-Tip">OFF</button>
       </div>
     </header>
@@ -106,7 +107,28 @@
             </div>
           </div>
           <div class="hype-bar"><div id="hype-fill" class="hype-fill"></div></div>
+        </div>
+      </div>
+
+      <!-- Agent Status -->
+      <div class="card">
+        <div class="card-header">AGENT <span id="ai-badge" class="ai-badge">RULES</span></div>
+        <div class="card-body">
+          <div class="stat-row">
+            <div class="stat"><span class="stat-val" id="agent-status">IDLE</span><span class="stat-label">Status</span></div>
+            <div class="stat"><span class="stat-val" id="agent-creator">—</span><span class="stat-label">Creator</span></div>
+          </div>
           <button id="btn-cycle" class="btn btn-accent full">⚡ RUN AGENT CYCLE</button>
+        </div>
+      </div>
+
+      <!-- Agent Log — live AI reasoning feed -->
+      <div class="card">
+        <div class="card-header">AGENT LOG <span class="hint-inline" id="agent-log-count">0</span></div>
+        <div class="card-body">
+          <div id="agent-log" class="agent-log">
+            <div class="log-entry log-dim">Watching for activity...</div>
+          </div>
         </div>
       </div>
 
@@ -205,6 +227,15 @@
       </div>
 
       <div class="card">
+        <div class="card-header">AI REASONING</div>
+        <div class="card-body">
+          <div class="setting-desc" id="ai-status-text">Rule-based mode — add API key for GPT-4o-mini</div>
+          <input id="input-openai" type="password" placeholder="sk-... OpenAI API key" class="mono" />
+          <button id="btn-save-openai" class="btn btn-secondary full">SAVE API KEY</button>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-header">AGENT CONFIG</div>
         <div class="card-body">
           <div class="setting-row">
@@ -248,6 +279,6 @@
     </section>
   </div>
 
-  <script src="/dist/sidebar.js"></script>
+  <script src="../dist/sidebar.js"></script>
 </body>
 </html>

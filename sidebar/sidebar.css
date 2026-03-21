@@ -589,3 +589,104 @@
      text-decoration: none;
    }
    .tip-item .tip-tx:hover { text-decoration: underline; }
+   
+   /* ═══ Agent Log ═══ */
+   .agent-log {
+     max-height: 200px;
+     overflow-y: auto;
+     display: flex;
+     flex-direction: column;
+     gap: 4px;
+   }
+   
+   .log-entry {
+     font-family: var(--mono);
+     font-size: 10px;
+     padding: 4px 6px;
+     border-radius: 4px;
+     background: rgba(255,255,255,0.03);
+     line-height: 1.3;
+     word-break: break-word;
+   }
+   
+   .log-entry.log-tip {
+     background: rgba(16, 185, 129, 0.1);
+     border-left: 2px solid var(--accent);
+     color: var(--accent);
+   }
+   
+   .log-entry.log-gate {
+     color: #F59E0B;
+     border-left: 2px solid #F59E0B;
+     background: rgba(245, 158, 11, 0.05);
+   }
+   
+   .log-entry.log-veto {
+     color: var(--red);
+     border-left: 2px solid var(--red);
+     background: rgba(239, 68, 68, 0.05);
+   }
+   
+   .log-entry.log-llm {
+     background: rgba(99, 102, 241, 0.08);
+     border-left: 2px solid #6366F1;
+     color: #A5B4FC;
+   }
+   
+   .log-entry.log-hype {
+     border-left: 2px solid #F59E0B;
+     background: rgba(245, 158, 11, 0.05);
+   }
+   
+   .log-entry.log-dim {
+     color: var(--fg2);
+   }
+   
+   .log-time {
+     color: var(--fg2);
+     margin-right: 4px;
+   }
+   
+   /* ═══ AI Badge ═══ */
+   .ai-badge {
+     font-family: var(--mono);
+     font-size: 9px;
+     font-weight: 700;
+     padding: 2px 6px;
+     border-radius: 3px;
+     background: #333;
+     color: var(--fg2);
+     margin-left: 6px;
+     letter-spacing: 0.5px;
+   }
+   
+   .ai-badge.ai-active {
+     background: rgba(99, 102, 241, 0.2);
+     color: #A5B4FC;
+     border: 1px solid rgba(99, 102, 241, 0.3);
+   }
+   
+   .hint-inline {
+     font-family: var(--mono);
+     font-size: 9px;
+     color: var(--fg2);
+     margin-left: 4px;
+   }
+   
+   .setting-desc {
+     font-size: 11px;
+     color: var(--fg2);
+     margin-bottom: 6px;
+     line-height: 1.4;
+   }
+   
+   .setting-desc.ai-on {
+     color: #A5B4FC;
+   }
+   
+   .header-label {
+     font-family: var(--mono);
+     font-size: 9px;
+     color: var(--fg2);
+     letter-spacing: 0.5px;
+   }
