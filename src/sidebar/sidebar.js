@@ -47,6 +47,10 @@ let walletReady = false;
 let currentChain = "sepolia";
 let autoTipOn = false;
 let logCount = 0;
+let sessionTipCount = 0;
+let sessionTipSpend = 0;
+let currentWatchCreator = null;
+let isLiveStream = false;
 
 // ── Agent Log ──
 
@@ -102,7 +106,6 @@ async function init() {
   $("btn-gen-seed").onclick = generateSeed;
   $("btn-connect").onclick = connectWallet;
   $("btn-auto-tip").onclick = toggleAutoTip;
-  $("btn-cycle").onclick = runCycle;
   $("btn-rumble").onclick = connectRumble;
   $("btn-rumble-dc").onclick = disconnectRumble;
   $("btn-register").onclick = registerCreator;
@@ -133,17 +136,25 @@ async function init() {
         : ` [RULES]`;
       addLog(`✅ $${tx.amount} → ${tx.creatorUsername} (${tx.triggerReason || tx.trigger || "auto"})${aiInfo}`, "tip");
       updateAIBadge(tx.aiMode || "rules");
-      $("agent-status").textContent = "TIPPED";
-      $("agent-status").style.color = "var(--accent)";
-      $("agent-creator").textContent = tx.creatorUsername || "—";
+      // Update last decision
+      showDecision("approve", tx.aiMode === "ai" ? "AI APPROVED" : "RULES APPROVED",
+        `$${tx.amount} → ${tx.creatorUsername}: ${tx.aiReasoning || tx.triggerReason || "watch time reward"}`);
+      // Update watching tips count
+      sessionTipCount++;
+      sessionTipSpend += parseFloat(tx.amount || 0);
+      updateWatchingStats();
       refreshDashboard();
     }
     if (m.type === "HYPE_UPDATE") {
       updateHype(m.data);
-      const h = m.data;
-      if (h.isSpike) {
-        addLog(`🔥 HYPE SPIKE ${h.score}/100 | ${h.chatVelocity} msg/s | keys: ${h.keywordHits?.join(", ") || "—"}`, "hype");
-      }
+    }
+    if (m.type === "WATCH_STATE") {
+      updateWatching(m.data);
+    }
+    if (m.type === "AGENT_DECISION") {
+      const d = m.data;
+      showDecision(d.type, d.label, d.text);
+      addLog(`${d.type === "veto" ? "🚫" : "🧠"} ${d.label}: ${d.text}`, d.type === "veto" ? "veto" : "llm");
     }
     if (m.type === "MILESTONE_HIT") {
       const ml = m.data;
@@ -348,56 +359,51 @@ async function toggleAutoTip() {
     const btn = $("btn-auto-tip");
     btn.textContent = autoTipOn ? "ON" : "OFF";
     btn.classList.toggle("active", autoTipOn);
-    $("agent-status").textContent = autoTipOn ? "MONITORING" : "IDLE";
-    $("agent-status").style.color = autoTipOn ? "#F59E0B" : "";
     addLog(autoTipOn ? "🟢 AI Monitor ON — auto-tipping enabled" : "🔴 AI Monitor OFF", autoTipOn ? "tip" : "");
     showMsg("ok", autoTipOn ? "Auto-tip ON" : "Auto-tip OFF");
   }
 }
 
-async function runCycle() {
-  $("btn-cycle").textContent = "RUNNING...";
-  $("btn-cycle").disabled = true;
-  $("agent-status").textContent = "RUNNING";
-  $("agent-status").style.color = "#F59E0B";
-  addLog("⚡ Manual agent cycle triggered", "");
+// ══════════════════════════════════════════
+// NOW WATCHING — real-time state from content script
+// ══════════════════════════════════════════
 
-  const res = await msg("AGENT_RUN_CYCLE");
-  $("btn-cycle").textContent = "⚡ RUN AGENT CYCLE";
-  $("btn-cycle").disabled = false;
+function updateWatching(data) {
+  if (!data || !data.creatorName) return;
 
-  if (res.success) {
-    const d = res.data;
-    if (d.hype) {
-      updateHype(d.hype);
-      addLog(`Hype: ${d.hype.score}/100 | vel: ${d.hype.chatVelocity} msg/s | spike: ${d.hype.isSpike ? "YES" : "no"}`, d.hype.isSpike ? "hype" : "");
-    }
+  // Show active state
+  hide("watching-none");
+  show("watching-active");
 
-    if (d.targetCreator) {
-      $("agent-creator").textContent = d.targetCreator;
-    }
+  // Creator name
+  currentWatchCreator = data.creatorName;
+  $("watch-creator-name").textContent = data.creatorName;
 
-    if (d.llm) {
-      const llm = d.llm;
-      addLog(`🧠 LLM: ${llm.shouldTip ? "APPROVE" : "VETO"} $${(llm.adjustedAmount || 0).toFixed(2)} (${(llm.confidence * 100).toFixed(0)}%) — ${llm.reasoning}`, llm.shouldTip ? "llm" : "veto");
-      updateAIBadge(llm.mode || "rules");
-    }
-
-    if (d.tips?.length > 0) {
-      $("agent-status").textContent = "TIPPED";
-      $("agent-status").style.color = "var(--accent)";
-    } else {
-      $("agent-status").textContent = "IDLE";
-      $("agent-status").style.color = "";
-    }
-
-    addLog(d.message || "Cycle complete", d.tips?.length ? "tip" : "gate");
-    refreshDashboard();
+  // Live vs VOD detection
+  isLiveStream = data.isLive || false;
+  if (isLiveStream) {
+    show("watch-live-badge");
+    hide("watch-vod-badge");
+    show("hype-section");
   } else {
-    addLog(`✗ Cycle error: ${res.error || "unknown"}`, "veto");
-    $("agent-status").textContent = "ERROR";
-    $("agent-status").style.color = "var(--red)";
+    hide("watch-live-badge");
+    show("watch-vod-badge");
+    // Show hype section if we have chat data (some VODs have chat replay)
+    // but mark it as static
   }
+
+  // Watch time
+  const secs = data.watchSeconds || 0;
+  const mins = Math.floor(secs / 60);
+  const s = secs % 60;
+  $("watch-time").textContent = `${mins}:${s < 10 ? "0" : ""}${s}`;
+
+  updateWatchingStats();
+}
+
+function updateWatchingStats() {
+  $("watch-tips").textContent = sessionTipCount;
+  $("watch-spent").textContent = `$${sessionTipSpend.toFixed(2)}`;
 }
 
 function updateHype(hype) {
@@ -407,14 +413,49 @@ function updateHype(hype) {
 
   $("hype-score").textContent = score;
   $("hype-score").style.color = color;
-  $("hype-arc").setAttribute("stroke", color);
-  $("hype-arc").setAttribute("stroke-dasharray", `${(score / 100) * 251} 251`);
-  $("hype-vel").textContent = `${hype.chatVelocity || 0} msg/s`;
-  $("hype-sent").textContent = `${((hype.sentimentScore || 0) * 100).toFixed(0)}%`;
-  $("hype-emoji").textContent = `${((hype.emojiDensity || 0) * 100).toFixed(0)}%`;
-  $("hype-keys").textContent = hype.keywordHits?.join(", ") || "—";
   $("hype-fill").style.width = `${score}%`;
   $("hype-fill").style.background = color;
+
+  // Show hype section when we have data
+  show("hype-section");
+
+  // Keyword tags
+  const tags = $("hype-tags");
+  if (tags && hype.keywordHits && hype.keywordHits.length > 0) {
+    tags.innerHTML = hype.keywordHits.map((k) => `<span class="hype-tag">${k}</span>`).join("");
+  }
+
+  // Log spikes
+  if (hype.isSpike) {
+    addLog(`🔥 HYPE SPIKE ${score}/100 | ${hype.chatVelocity} msg/s | keys: ${hype.keywordHits?.join(", ") || "—"}`, "hype");
+  }
+}
+
+function showDecision(type, label, text) {
+  const el = $("last-decision");
+  if (!el) return;
+  el.style.display = "";
+  el.className = `last-decision decision-${type}`;
+  $("decision-icon").textContent = type === "approve" ? "✅" : type === "veto" ? "🚫" : "🧠";
+  $("decision-label").textContent = label;
+  $("decision-text").textContent = text;
+}
+
+async function runCycle() {
+  // Kept for backward compat but not shown in UI
+  const res = await msg("AGENT_RUN_CYCLE");
+  if (res.success) {
+    const d = res.data;
+    if (d.hype) updateHype(d.hype);
+    if (d.llm) {
+      showDecision(d.llm.shouldTip ? "approve" : "veto",
+        d.llm.shouldTip ? "AI APPROVED" : "AI VETOED",
+        d.llm.reasoning || "—");
+      addLog(`🧠 ${d.llm.shouldTip ? "APPROVE" : "VETO"} — ${d.llm.reasoning}`, d.llm.shouldTip ? "llm" : "veto");
+    }
+    addLog(d.message || "Cycle complete", d.tips?.length ? "tip" : "gate");
+    refreshDashboard();
+  }
 }
 
 // ══════════════════════════════════════════

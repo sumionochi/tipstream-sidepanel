@@ -65,8 +65,58 @@
         </div>
       </div>
 
-      <!-- Rumble -->
+      <!-- NOW WATCHING — the primary agent card -->
       <div class="card">
+        <div class="card-header">NOW WATCHING <span id="ai-badge" class="ai-badge">RULES</span></div>
+        <div class="card-body">
+          <div id="watching-none" class="watching-empty">
+            <span class="watching-empty-icon">📺</span>
+            <span>Open a Rumble video to start</span>
+          </div>
+          <div id="watching-active" style="display:none">
+            <div class="watching-creator">
+              <span id="watch-creator-name" class="watch-creator">—</span>
+              <span id="watch-live-badge" class="live-badge" style="display:none">LIVE</span>
+              <span id="watch-vod-badge" class="vod-badge" style="display:none">VOD</span>
+            </div>
+            <div class="watching-stats">
+              <div class="wstat"><span class="wstat-val" id="watch-time">0:00</span><span class="wstat-label">WATCHED</span></div>
+              <div class="wstat"><span class="wstat-val" id="watch-tips">0</span><span class="wstat-label">TIPS</span></div>
+              <div class="wstat"><span class="wstat-val" id="watch-spent">$0</span><span class="wstat-label">SPENT</span></div>
+            </div>
+            <!-- Hype mini-bar (only visible during livestreams) -->
+            <div id="hype-section" style="display:none">
+              <div class="hype-mini">
+                <span class="hype-mini-label">CHAT HYPE</span>
+                <span class="hype-mini-score" id="hype-score">0</span>
+                <div class="hype-mini-bar"><div id="hype-fill" class="hype-fill"></div></div>
+              </div>
+              <div class="hype-tags" id="hype-tags"></div>
+            </div>
+            <!-- Last AI decision -->
+            <div id="last-decision" class="last-decision" style="display:none">
+              <div class="decision-header">
+                <span id="decision-icon">🧠</span>
+                <span id="decision-label">—</span>
+              </div>
+              <div id="decision-text" class="decision-text">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Log — live feed -->
+      <div class="card">
+        <div class="card-header">AGENT LOG <span class="hint-inline" id="agent-log-count">0</span></div>
+        <div class="card-body">
+          <div id="agent-log" class="agent-log">
+            <div class="log-entry log-dim">Watching for activity...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rumble -->
+      <div class="card card-compact">
         <div class="card-header">RUMBLE</div>
         <div class="card-body" id="rumble-section">
           <div id="rumble-connected" style="display:none">
@@ -82,52 +132,6 @@
           <div id="rumble-disconnected">
             <input id="input-rumble" placeholder="Rumble API key..." />
             <button id="btn-rumble" class="btn btn-secondary full">CONNECT RUMBLE</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Hype -->
-      <div class="card">
-        <div class="card-header">HYPE SCORE</div>
-        <div class="card-body">
-          <div class="hype-row">
-            <div class="hype-gauge">
-              <svg viewBox="0 0 100 100" width="80" height="80">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#333" stroke-width="8"/>
-                <circle id="hype-arc" cx="50" cy="50" r="40" fill="none" stroke="#10B981" stroke-width="8"
-                  stroke-linecap="butt" stroke-dasharray="0 251" transform="rotate(-90 50 50)"/>
-              </svg>
-              <div class="hype-number" id="hype-score">0</div>
-            </div>
-            <div class="hype-details">
-              <div class="hype-detail"><span>VEL</span><span id="hype-vel">0</span></div>
-              <div class="hype-detail"><span>SENT</span><span id="hype-sent">0%</span></div>
-              <div class="hype-detail"><span>EMOJI</span><span id="hype-emoji">0%</span></div>
-              <div class="hype-detail"><span>KEYS</span><span id="hype-keys" class="truncate">—</span></div>
-            </div>
-          </div>
-          <div class="hype-bar"><div id="hype-fill" class="hype-fill"></div></div>
-        </div>
-      </div>
-
-      <!-- Agent Status -->
-      <div class="card">
-        <div class="card-header">AGENT <span id="ai-badge" class="ai-badge">RULES</span></div>
-        <div class="card-body">
-          <div class="stat-row">
-            <div class="stat"><span class="stat-val" id="agent-status">IDLE</span><span class="stat-label">Status</span></div>
-            <div class="stat"><span class="stat-val" id="agent-creator">—</span><span class="stat-label">Creator</span></div>
-          </div>
-          <button id="btn-cycle" class="btn btn-accent full">⚡ RUN AGENT CYCLE</button>
-        </div>
-      </div>
-
-      <!-- Agent Log — live AI reasoning feed -->
-      <div class="card">
-        <div class="card-header">AGENT LOG <span class="hint-inline" id="agent-log-count">0</span></div>
-        <div class="card-body">
-          <div id="agent-log" class="agent-log">
-            <div class="log-entry log-dim">Watching for activity...</div>
           </div>
         </div>
       </div>

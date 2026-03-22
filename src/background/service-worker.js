@@ -225,6 +225,12 @@ async function handleMessage(msg, sender) {
       };
       await setKey("watchSessions", sessions);
 
+      // Broadcast state to sidebar
+      chrome.runtime.sendMessage({
+        type: "WATCH_STATE",
+        data: { creatorName, creatorAddress, watchSeconds, videoId, isLive: !!(store.rumbleConnected) },
+      }).catch(() => {});
+
       // Auto-register creator if address detected from HTMX
       if (creatorName && creatorAddress && /^0x[a-fA-F0-9]{40}$/.test(creatorAddress)) {
         const existing = await getCreator(creatorName);
@@ -245,6 +251,10 @@ async function handleMessage(msg, sender) {
       }
       if (watchSeconds < 60) {
         console.log(`[Agent] ✗ below_min_watch_time (${watchSeconds}s < 60s)`);
+        chrome.runtime.sendMessage({
+          type: "AGENT_DECISION",
+          data: { type: "thinking", label: "WATCHING", text: `${watchSeconds}s / 60s minimum — ${60 - watchSeconds}s to go` },
+        }).catch(() => {});
         return { success: true, tipped: false, reason: "below_min_watch_time" };
       }
 
@@ -255,7 +265,12 @@ async function handleMessage(msg, sender) {
       const cooldown = settings.cooldownSeconds || 60;
       const secsSinceVideoTip = lastTipForVideo ? (Date.now() - lastTipForVideo) / 1000 : Infinity;
       if (lastTipForVideo && secsSinceVideoTip < cooldown) {
-        console.log(`[Agent] ✗ video_cooldown (${Math.ceil(cooldown - secsSinceVideoTip)}s left for ${videoId})`);
+        const secsLeft = Math.ceil(cooldown - secsSinceVideoTip);
+        console.log(`[Agent] ✗ video_cooldown (${secsLeft}s left for ${videoId})`);
+        chrome.runtime.sendMessage({
+          type: "AGENT_DECISION",
+          data: { type: "thinking", label: "COOLDOWN", text: `Next tip in ${secsLeft}s` },
+        }).catch(() => {});
         return { success: true, tipped: false, reason: "video_cooldown" };
       }
 
@@ -284,7 +299,12 @@ async function handleMessage(msg, sender) {
       // Cooldown
       const timeSinceLast = (Date.now() - budget.lastTipAt) / 1000;
       if (budget.lastTipAt > 0 && timeSinceLast < (budget.cooldownSeconds || 60)) {
-        console.log(`[Agent] ✗ cooldown_active (${Math.ceil(budget.cooldownSeconds - timeSinceLast)}s left)`);
+        const secsLeft = Math.ceil((budget.cooldownSeconds || 60) - timeSinceLast);
+        console.log(`[Agent] ✗ cooldown_active (${secsLeft}s left)`);
+        chrome.runtime.sendMessage({
+          type: "AGENT_DECISION",
+          data: { type: "thinking", label: "COOLDOWN", text: `Next tip in ${secsLeft}s` },
+        }).catch(() => {});
         return { success: true, tipped: false, reason: "cooldown_active" };
       }
 
@@ -306,6 +326,10 @@ async function handleMessage(msg, sender) {
 
       if (!llmResult.shouldTip) {
         console.log(`[Agent] LLM vetoed: ${llmResult.reasoning}`);
+        chrome.runtime.sendMessage({
+          type: "AGENT_DECISION",
+          data: { type: "veto", label: `${llmResult.mode === "ai" ? "AI" : "RULES"} VETOED`, text: llmResult.reasoning, creatorName },
+        }).catch(() => {});
         return { success: true, tipped: false, reason: "llm_veto", llm: llmResult };
       }
 
