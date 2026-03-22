@@ -1,1 +1,1 @@
-"use strict";(self.webpackChunktipstream_extension=self.webpackChunktipstream_extension||[]).push([[591],{1591(e){e.exports=function(){throw new Error("ws does not work in the browser. Browser clients must use the native WebSocket object")}}}]);
+"use strict";(self.webpackChunktipstream_for_rumble_tether=self.webpackChunktipstream_for_rumble_tether||[]).push([[591],{1591(e){e.exports=function(){throw new Error("ws does not work in the browser. Browser clients must use the native WebSocket object")}}}]);

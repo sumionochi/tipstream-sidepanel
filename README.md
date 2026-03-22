@@ -3,8 +3,8 @@
 > A Chrome sidebar extension that watches Rumble videos with you and autonomously tips creators with real USDt on-chain — using AI reasoning, live chat hype detection, viewer spike analysis, milestone tracking, and smart splits.
 
 **Track:** 💸 Tipping Bot — Hackathon Galactica: WDK Edition 1 by Tether  
-**Demo Video:** [YouTube](https://youtu.be/TODO)  
-**OpenClaw Skill:** [`openclaw-skill/`](./openclaw-skill/)
+**Demo Video:** [YouTube](https://youtu.be/4iJJDH2PUEk)  
+**OpenClaw Skill:** [`openclaw-skill/`](./skill/SKILL.md)
 
 ---
 
