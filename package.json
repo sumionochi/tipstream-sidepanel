@@ -1,6 +1,6 @@
 {
     "name": "tipstream-for-rumble-tether",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "description": "AI-powered autonomous tipping agents for Rumble creators — Chrome sidebar extension powered by Tether WDK. Auto-tips based on watch time, chat hype NLP, viewer spikes, milestones, and smart splits. Real on-chain USDt + BTC.",
     "main": "src/background/service-worker.js",
     "author": "Aaditya Srivastava",
