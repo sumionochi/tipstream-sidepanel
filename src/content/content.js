@@ -24,6 +24,7 @@
   let lastReportedSeconds = 0;
   let lastChatIds = new Set();
   let extensionValid = true;
+  let badgeTipTotal = 0;
 
   const WATCH_REPORT_INTERVAL = 30000;
   const DETECTION_RETRY_INTERVAL = 2000;
@@ -540,21 +541,47 @@
     var badge = document.createElement("div");
     badge.id = "tipstream-badge";
     badge.innerHTML =
-      '<div style="' +
-        'position: absolute; top: 12px; right: 12px; z-index: 9999;' +
-        'background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);' +
-        'color: #10B981; padding: 6px 12px; border-radius: 20px;' +
-        'font-size: 11px; font-family: JetBrains Mono, monospace;' +
-        'font-weight: 600; display: flex; align-items: center; gap: 6px;' +
-        'pointer-events: none; border: 1px solid rgba(16,185,129,0.3);' +
+      '<div id="tipstream-badge-inner" style="' +
+        'position:absolute; top:12px; right:12px; z-index:9999;' +
+        'background:#171717; border:2px solid #10B981;' +
+        'color:#F2F1EF; padding:0; pointer-events:none;' +
+        'font-family:SF Mono,Fira Code,JetBrains Mono,Consolas,monospace;' +
+        'display:flex; align-items:stretch;' +
       '">' +
-        '<span style="width:6px;height:6px;border-radius:50%;background:#10B981;' +
-          'display:inline-block;animation:ts-pulse 2s ease-in-out infinite"></span>' +
-        '<span id="tipstream-badge-text">TIPSTREAM ▶ 0:00</span>' +
+        // Logo block — solid accent square
+        '<div style="' +
+          'background:#10B981; color:#171717; padding:5px 8px;' +
+          'font-weight:900; font-size:11px; letter-spacing:1px;' +
+          'display:flex; align-items:center; gap:4px;' +
+        '">' +
+          '<span style="font-size:13px;font-weight:900;">T</span>' +
+          '<span style="font-size:8px;letter-spacing:1.5px;">TIPSTREAM</span>' +
+        '</div>' +
+        // Status block — timer + state
+        '<div style="' +
+          'padding:5px 10px; display:flex; align-items:center; gap:6px;' +
+          'border-left:2px solid #333;' +
+        '">' +
+          '<span id="tipstream-badge-status" style="' +
+            'width:6px; height:6px; background:#10B981; display:inline-block;' +
+            'animation:ts-pulse 2s ease-in-out infinite;' +
+          '"></span>' +
+          '<span id="tipstream-badge-text" style="' +
+            'font-size:11px; font-weight:700; letter-spacing:0.5px; color:#F2F1EF;' +
+          '">▶ 0:00</span>' +
+        '</div>' +
+        // Tip count block (hidden until first tip)
+        '<div id="tipstream-badge-tips" style="' +
+          'padding:5px 8px; display:none; align-items:center;' +
+          'border-left:2px solid #333; color:#10B981;' +
+          'font-size:10px; font-weight:900; letter-spacing:0.5px;' +
+        '">$0</div>' +
       '</div>';
 
     var style = document.createElement("style");
-    style.textContent = "@keyframes ts-pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }";
+    style.textContent =
+      "@keyframes ts-pulse{0%,100%{opacity:1}50%{opacity:.4}}" +
+      "@keyframes ts-tipin{from{transform:translateY(-40px);opacity:0}to{transform:translateY(0);opacity:1}}";
     document.head.appendChild(style);
 
     if (playerContainer.style.position === "" || playerContainer.style.position === "static") {
@@ -569,7 +596,21 @@
       var mins = Math.floor(watchSeconds / 60);
       var secs = watchSeconds % 60;
       var status = isWatching ? "▶" : "⏸";
-      el.textContent = "TIPSTREAM " + status + " " + mins + ":" + (secs < 10 ? "0" : "") + secs;
+      el.textContent = status + " " + mins + ":" + (secs < 10 ? "0" : "") + secs;
+    }
+    // Pulse dot color: green when watching, gray when paused
+    var dot = document.getElementById("tipstream-badge-status");
+    if (dot) {
+      dot.style.background = isWatching ? "#10B981" : "#666";
+    }
+  }
+
+  function updateBadgeTipCount(amount) {
+    var el = document.getElementById("tipstream-badge-tips");
+    if (el) {
+      badgeTipTotal += parseFloat(amount || 0);
+      el.style.display = "flex";
+      el.textContent = "$" + badgeTipTotal.toFixed(2);
     }
   }
 
@@ -577,37 +618,98 @@
   // TIP NOTIFICATION — on-page toast when tip sent
   // ═══════════════════════════════════════════
   chrome.runtime.onMessage.addListener(function (message) {
-    if (message.type === "TIP_SENT") showTipNotification(message.data);
+    if (message.type === "TIP_SENT") {
+      showTipNotification(message.data);
+      updateBadgeTipCount(message.data.amount);
+    }
   });
 
   function showTipNotification(tipData) {
+    // Remove any existing notification
+    var existing = document.getElementById("tipstream-toast");
+    if (existing) existing.remove();
+
+    var isAI = tipData.aiMode === "ai";
+    var confidence = tipData.aiConfidence ? Math.round(tipData.aiConfidence * 100) : 0;
+
     var notification = document.createElement("div");
+    notification.id = "tipstream-toast";
     notification.style.cssText =
-      "position:fixed; bottom:24px; right:24px; z-index:99999;" +
-      "background:linear-gradient(135deg,#171717,#0d1117);" +
-      "border:1px solid #10B981; color:white; padding:16px 20px;" +
-      "border-radius:12px; font-family:JetBrains Mono, monospace;" +
-      "font-size:13px; box-shadow:0 8px 32px rgba(16,185,129,0.2);" +
-      "animation:ts-slidein 0.4s ease-out; max-width:320px;";
-    notification.innerHTML =
-      '<div style="font-weight:700;color:#10B981;margin-bottom:6px">₮ Tip Sent!</div>' +
-      '<div style="color:#e0e0e0"><strong>$' + (tipData.amount || "?") + ' USDt</strong> → ' + (tipData.creatorUsername || tipData.creatorName || "?") + '</div>' +
-      '<div style="color:#6B7280;font-size:11px;margin-top:4px">' +
-        (tipData.triggerReason || tipData.trigger || "auto") + ' · ' + (tipData.aiMode || "rules") +
-        (tipData.txHash ? " · " + tipData.txHash.slice(0, 12) + "..." : "") +
+      "position:fixed; bottom:20px; right:20px; z-index:99999;" +
+      "background:#171717; border:2px solid #10B981; color:#F2F1EF;" +
+      "font-family:SF Mono,Fira Code,JetBrains Mono,Consolas,monospace;" +
+      "width:300px; animation:ts-slidein 0.3s ease-out;" +
+      "box-shadow:4px 4px 0 #10B981;";
+
+    // Header bar
+    var header =
+      '<div style="' +
+        'background:#10B981; color:#171717; padding:6px 10px;' +
+        'display:flex; justify-content:space-between; align-items:center;' +
+        'font-weight:900; font-size:10px; letter-spacing:2px;' +
+      '">' +
+        '<span>₮ TIP CONFIRMED</span>' +
+        '<span style="font-size:8px;letter-spacing:1px;opacity:0.7;">' + (isAI ? "AI " + confidence + "%" : "RULES") + '</span>' +
       '</div>';
 
+    // Amount row
+    var amount =
+      '<div style="' +
+        'padding:10px; border-bottom:2px solid #333;' +
+        'display:flex; justify-content:space-between; align-items:baseline;' +
+      '">' +
+        '<span style="font-size:20px;font-weight:900;color:#10B981;">$' + (tipData.amount || "?") + '</span>' +
+        '<span style="font-size:10px;color:#999;letter-spacing:1px;">USDt</span>' +
+      '</div>';
+
+    // Details
+    var creator = tipData.creatorUsername || tipData.creatorName || "?";
+    var trigger = (tipData.triggerReason || tipData.trigger || "auto").replace(/_/g, " ");
+    var txShort = tipData.txHash ? tipData.txHash.slice(0, 10) + "..." : "pending";
+
+    var details =
+      '<div style="padding:8px 10px; display:flex; flex-direction:column; gap:3px;">' +
+        '<div style="display:flex;justify-content:space-between;font-size:10px;">' +
+          '<span style="color:#999;letter-spacing:1px;">TO</span>' +
+          '<span style="color:#F2F1EF;font-weight:700;">' + creator + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:10px;">' +
+          '<span style="color:#999;letter-spacing:1px;">TRIGGER</span>' +
+          '<span style="color:#F2F1EF;">' + trigger + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:10px;">' +
+          '<span style="color:#999;letter-spacing:1px;">TX</span>' +
+          '<span style="color:#10B981;font-size:9px;">' + txShort + '</span>' +
+        '</div>' +
+      '</div>';
+
+    // AI reasoning (if available)
+    var reasoning = "";
+    if (tipData.aiReasoning && tipData.aiReasoning.length > 5) {
+      reasoning =
+        '<div style="' +
+          'padding:6px 10px; border-top:2px solid #333;' +
+          'font-size:9px; color:#999; font-style:italic; line-height:1.3;' +
+        '">' +
+          '🧠 ' + tipData.aiReasoning.slice(0, 120) +
+        '</div>';
+    }
+
+    notification.innerHTML = header + amount + details + reasoning;
+
     var style = document.createElement("style");
-    style.textContent = "@keyframes ts-slidein { from { transform:translateY(100px);opacity:0 } to { transform:translateY(0);opacity:1 } }";
+    style.textContent =
+      "@keyframes ts-slidein{from{transform:translateX(320px)}to{transform:translateX(0)}}";
     document.head.appendChild(style);
     document.body.appendChild(notification);
 
+    // Auto dismiss
     setTimeout(function () {
-      notification.style.transition = "opacity 0.3s, transform 0.3s";
+      notification.style.transition = "transform 0.3s ease-in, opacity 0.3s";
+      notification.style.transform = "translateX(320px)";
       notification.style.opacity = "0";
-      notification.style.transform = "translateY(20px)";
       setTimeout(function () { notification.remove(); }, 300);
-    }, 5000);
+    }, 6000);
   }
 
   // ═══════════════════════════════════════════
@@ -648,6 +750,7 @@
     lastReportedSeconds = 0;
     videoElement = null;
     lastChatIds = new Set();
+    badgeTipTotal = 0;
     window._tipstreamChatLogged = false;
     var badge = document.getElementById("tipstream-badge");
     if (badge) badge.remove();

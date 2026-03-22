@@ -44,6 +44,9 @@ module.exports = {
       dgram: false,
       readline: false,
       worker_threads: false,
+      zlib: false,
+      ws: false,                    // ElectrumWs checks globalThis.WebSocket first (Chrome has it)
+      "bare-node-runtime": false,   // BTC dep, not needed in browser
     },
     alias: {
       // Critical: replace native C++ sodium with pure JS implementation
@@ -51,6 +54,8 @@ module.exports = {
       "sodium-universal": require.resolve("sodium-javascript"),
       // Alias require-addon to empty module (native addon loader not needed)
       "require-addon": false,
+      // bare-node-runtime tries to load native modules — disable
+      "bare-node-runtime": false,
     },
   },
 
@@ -64,7 +69,7 @@ module.exports = {
     }),
     // Ignore optional native modules that WDK tries to load
     new webpack.IgnorePlugin({
-      resourceRegExp: /^(require-addon|node-gyp-build)$/,
+      resourceRegExp: /^(require-addon|node-gyp-build|bare-node-runtime)$/,
     }),
   ],
 
@@ -90,5 +95,9 @@ module.exports = {
   ignoreWarnings: [
     { module: /sodium-native/ },
     { module: /require-addon/ },
+    { module: /wdk-wallet-btc/ },
+    { module: /bare-node-runtime/ },
+    { module: /bitcoinjs/ },
+    { module: /electrum/ },
   ],
 };

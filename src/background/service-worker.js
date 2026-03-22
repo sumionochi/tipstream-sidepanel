@@ -24,16 +24,20 @@ import { analyzeHype, deduplicateSpam } from "./hype-agent.js";
 import { RUMBLE_API_URL } from "./config.js";
 import { llmEvaluate } from "./llm-agent.js";
 
-// ── Restore wallet on startup ──
+// ── Restore wallet on startup (trackable promise for WALLET_GET race fix) ──
+let walletRestorePromise = null;
 try {
-  restoreWallet().then((ok) => {
+  walletRestorePromise = restoreWallet().then((ok) => {
     if (ok) console.log("[TipStream] Wallet restored from storage");
     else console.log("[TipStream] No stored wallet — waiting for setup");
+    return ok;
   }).catch((err) => {
     console.warn("[TipStream] Wallet restore failed:", err.message);
+    return false;
   });
 } catch (err) {
   console.warn("[TipStream] Init error:", err.message);
+  walletRestorePromise = Promise.resolve(false);
 }
 
 // ── Sidebar ──
@@ -57,6 +61,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function handleMessage(msg, sender) {
   const { type, data } = msg;
+
+  // Wait for wallet restore on service worker wake (MV3 race fix)
+  if (walletRestorePromise) {
+    await walletRestorePromise;
+    walletRestorePromise = null;
+  }
 
   switch (type) {
     // ═══ WALLET ═══

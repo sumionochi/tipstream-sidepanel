@@ -5,19 +5,9 @@
 
 import WDK from "@tetherto/wdk";
 import WalletManagerEvm from "@tetherto/wdk-wallet-evm";
+import WalletManagerBtc, { ElectrumWs } from "@tetherto/wdk-wallet-btc";
 import { CHAINS, TOKENS, DEFAULT_CHAIN } from "./config.js";
 import { getKey, setStore } from "./store.js";
-
-// Try to import BTC — may fail if dep not installed yet
-let WalletManagerBtc = null;
-let ElectrumWs = null;
-try {
-  const btcModule = require("@tetherto/wdk-wallet-btc");
-  WalletManagerBtc = btcModule.default || btcModule;
-  ElectrumWs = btcModule.ElectrumWs;
-} catch (_) {
-  console.warn("[WDK] wdk-wallet-btc not available — BTC disabled");
-}
 
 // ── State ──
 
@@ -48,25 +38,32 @@ export async function initWallet(seed) {
   cachedAddress = await accountInstance.getAddress();
   console.log(`[WDK] EVM wallet ready: ${cachedAddress}`);
 
-  // ── BTC init (optional, graceful fail) ──
-  if (WalletManagerBtc && ElectrumWs) {
-    try {
-      const electrumClient = new ElectrumWs({
-        host: "electrum.blockstream.info",
-        port: 50004,
-      });
-      const btcManager = new WalletManagerBtc(seed, {
-        client: electrumClient,
-        network: "bitcoin",
-      });
-      btcAccount = await btcManager.getAccount(0);
-      cachedBtcAddress = await btcAccount.getAddress();
-      console.log(`[WDK] BTC wallet ready: ${cachedBtcAddress}`);
-    } catch (err) {
-      console.warn(`[WDK] BTC init failed (non-fatal): ${err.message}`);
-      btcAccount = null;
-      cachedBtcAddress = null;
-    }
+  // ── BTC init (WebSocket transport for Chrome extension service worker) ──
+  try {
+    const electrumClient = new ElectrumWs({
+      url: "wss://electrum.blockstream.info:50004",
+      network: "bitcoin",
+    });
+
+    const btcManager = new WalletManagerBtc(seed, {
+      client: electrumClient,
+      network: "bitcoin",
+    });
+
+    // Timeout BTC init — Electrum WSS can be slow, don't block EVM wallet
+    const btcInitPromise = btcManager.getAccount(0).then(async (acc) => {
+      const addr = await acc.getAddress();
+      return { acc, addr };
+    });
+    const btcTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error("BTC init timeout (10s)")), 10000));
+    const { acc, addr } = await Promise.race([btcInitPromise, btcTimeout]);
+    btcAccount = acc;
+    cachedBtcAddress = addr;
+    console.log(`[WDK] BTC wallet ready: ${cachedBtcAddress}`);
+  } catch (err) {
+    console.warn(`[WDK] BTC init failed (non-fatal): ${err.message}`);
+    btcAccount = null;
+    cachedBtcAddress = null;
   }
 
   // Persist
@@ -137,10 +134,12 @@ export async function getBalances() {
     console.warn("[WDK] USDt balance error:", err.message);
   }
 
-  // BTC balance
+  // BTC balance (with timeout — Electrum WSS can be slow)
   if (btcAccount) {
     try {
-      const btcBal = await btcAccount.getBalance();
+      const btcBalPromise = btcAccount.getBalance();
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000));
+      const btcBal = await Promise.race([btcBalPromise, timeoutPromise]);
       balanceBTC = (Number(btcBal) / 1e8).toFixed(8);
     } catch (err) {
       console.warn("[WDK] BTC balance error:", err.message);

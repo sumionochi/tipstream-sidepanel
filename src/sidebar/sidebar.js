@@ -52,6 +52,11 @@ let sessionTipSpend = 0;
 let currentWatchCreator = null;
 let isLiveStream = false;
 
+// Local timer state — interpolates between 30s WATCH_STATE broadcasts
+let lastServerSeconds = 0;       // last watchSeconds from service worker
+let lastServerTimestamp = 0;     // Date.now() when we received it
+let localTimerInterval = null;   // 1-second tick
+
 // ── Agent Log ──
 
 function addLog(text, type) {
@@ -380,6 +385,7 @@ async function toggleAutoTip() {
 
 // ══════════════════════════════════════════
 // NOW WATCHING — real-time state from content script
+// Local 1s timer interpolates between 30s WATCH_STATE broadcasts
 // ══════════════════════════════════════════
 
 function updateWatching(data) {
@@ -402,17 +408,27 @@ function updateWatching(data) {
   } else {
     hide("watch-live-badge");
     show("watch-vod-badge");
-    // Show hype section if we have chat data (some VODs have chat replay)
-    // but mark it as static
   }
 
-  // Watch time
-  const secs = data.watchSeconds || 0;
-  const mins = Math.floor(secs / 60);
-  const s = secs % 60;
-  $("watch-time").textContent = `${mins}:${s < 10 ? "0" : ""}${s}`;
+  // Sync server time — store the anchor point
+  lastServerSeconds = data.watchSeconds || 0;
+  lastServerTimestamp = Date.now();
+
+  // Start local timer if not running
+  if (!localTimerInterval) {
+    localTimerInterval = setInterval(tickLocalTimer, 1000);
+  }
 
   updateWatchingStats();
+}
+
+function tickLocalTimer() {
+  // Calculate current seconds: server anchor + local elapsed
+  const elapsed = Math.floor((Date.now() - lastServerTimestamp) / 1000);
+  const currentSecs = lastServerSeconds + elapsed;
+  const mins = Math.floor(currentSecs / 60);
+  const s = currentSecs % 60;
+  $("watch-time").textContent = `${mins}:${s < 10 ? "0" : ""}${s}`;
 }
 
 function updateWatchingStats() {
@@ -789,7 +805,7 @@ async function refreshConnections() {
   const btcAvail = btcRes.success && btcRes.data.available;
   const items = [
     { name: "WDK Wallet", ok: !!store.walletAddress, detail: store.walletAddress ? shortAddr(store.walletAddress) : "Not connected" },
-    { name: "BTC Wallet", ok: btcAvail, detail: btcAvail ? shortAddr(btcRes.data.address) : "Not available" },
+    { name: "BTC Wallet", ok: btcAvail, detail: btcAvail ? shortAddr(btcRes.data.address) : "Run: npm install @tetherto/wdk-wallet-btc" },
     { name: "Rumble API", ok: !!store.rumbleApiKey, detail: store.rumbleUsername ? `@${store.rumbleUsername}` : "Not connected" },
     { name: "Chain", ok: true, detail: (store.walletChain || "sepolia").toUpperCase() },
     { name: "Tokens", ok: true, detail: btcAvail ? "USDt + BTC" : "USDt (Tether WDK)" },
