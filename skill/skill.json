@@ -1,25 +1,25 @@
 {
-    "name": "tipstream-ai-tipping",
-    "version": "1.0.0",
-    "description": "AI-powered autonomous tipping agents for Rumble creators — auto-tip based on watch time, chat hype analysis, follower milestones, and community pools. Supports smart splits, GPT-4o-mini reasoning, and multi-chain USDt via Tether WDK.",
-    "skills": ["SKILL.md"],
-    "tags": [
-      "rumble", "tether", "wdk", "tipping", "crypto", "usdt", "agents",
-      "ai", "gpt", "hype", "livestream", "chat", "milestones",
-      "smart-splits", "community-pools", "watch-time", "automation"
-    ],
-    "author": "TipStream",
-    "license": "Apache-2.0",
-    "repository": "https://github.com/sumionochi/tipstream",
-    "capabilities": [
-      "watch_time_tipping",
-      "hype_spike_tipping",
-      "milestone_tipping",
-      "manual_tipping",
-      "smart_splits",
-      "community_pools",
-      "llm_reasoning",
-      "budget_management",
-      "multi_chain"
-    ]
-  }
+  "name": "tipstream-ai-tipping",
+  "version": "1.0.0",
+  "description": "AI-powered autonomous tipping agents for Rumble creators — auto-tip based on watch time, chat hype analysis, follower milestones, and community pools. Supports smart splits, GPT-4o-mini reasoning, and multi-chain USDt via Tether WDK.",
+  "skills": ["SKILL.md"],
+  "tags": [
+    "rumble", "tether", "wdk", "tipping", "crypto", "usdt", "agents",
+    "ai", "gpt", "hype", "livestream", "chat", "milestones",
+    "smart-splits", "community-pools", "watch-time", "automation"
+  ],
+  "author": "TipStream",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/sumionochi/tipstream",
+  "capabilities": [
+    "watch_time_tipping",
+    "hype_spike_tipping",
+    "milestone_tipping",
+    "manual_tipping",
+    "smart_splits",
+    "community_pools",
+    "llm_reasoning",
+    "budget_management",
+    "multi_chain"
+  ]
+}

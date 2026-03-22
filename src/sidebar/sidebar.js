@@ -110,6 +110,7 @@ async function init() {
   $("btn-rumble-dc").onclick = disconnectRumble;
   $("btn-register").onclick = registerCreator;
   $("btn-tip").onclick = sendTip;
+  $("btn-btc-tip").onclick = sendBtcTip;
   $("btn-budget").onclick = saveBudget;
   $("btn-pool").onclick = createPool;
   $("btn-save-settings").onclick = saveSettings;
@@ -292,9 +293,16 @@ function updateWallet(data) {
   $("wallet-address").textContent = data.address;
   $("stat-eth").textContent = parseFloat(data.balanceETH).toFixed(4);
   $("stat-usdt").textContent = `$${data.balanceUSDT}`;
+  $("stat-btc").textContent = data.balanceBTC || "0";
   $("stat-chain").textContent = (data.chain || "sepolia").toUpperCase();
   $("wallet-link").href = addrUrl(data.address, data.chain);
   currentChain = data.chain;
+
+  // Show BTC card if BTC wallet is available
+  const btcCard = $("btc-tip-card");
+  if (btcCard) {
+    btcCard.style.display = data.btcAvailable ? "" : "none";
+  }
 }
 
 async function switchChain() {
@@ -502,6 +510,42 @@ async function sendTip() {
   }
 }
 
+async function sendBtcTip() {
+  const creator = $("btc-tip-creator").value;
+  const amount = $("btc-tip-amount").value;
+  if (!creator || !amount) return;
+
+  // Get creator's BTC address
+  const fullRes = await msg("CREATOR_GET_FULL");
+  const creators = fullRes.success ? fullRes.data : {};
+  const creatorData = creators[creator];
+  const btcAddr = creatorData?.btcAddress;
+  if (!btcAddr) {
+    showMsg("err", `${creator} has no BTC address registered`);
+    return;
+  }
+
+  $("btn-btc-tip").textContent = "SENDING...";
+  $("btn-btc-tip").disabled = true;
+  const res = await msg("BTC_TIP_SEND", { creatorUsername: creator, btcAddress: btcAddr, amount: parseFloat(amount) });
+  $("btn-btc-tip").textContent = "SEND BTC TIP";
+  $("btn-btc-tip").disabled = false;
+
+  if (res.success && res.data) {
+    const tx = res.data;
+    if (tx.status === "confirmed") {
+      showMsg("ok", `₿${tx.amount} → ${tx.creatorUsername} — ${shortAddr(tx.txHash)}`);
+      addLog(`₿ BTC tip: ${tx.amount} BTC → ${tx.creatorUsername} | ${shortAddr(tx.txHash)}`, "tip");
+    } else {
+      showMsg("err", `BTC tip failed: ${tx.error || "unknown"}`);
+    }
+    refreshDashboard();
+    refreshHistory();
+  } else {
+    showMsg("err", res.error);
+  }
+}
+
 async function saveBudget() {
   const creator = $("budget-creator").value;
   if (!creator) return;
@@ -656,17 +700,23 @@ async function refreshCreators() {
   const creatorsRes = await msg("CREATOR_GET_ALL");
   const creators = creatorsRes.success ? creatorsRes.data : {};
 
-  // Creators list
+  // Creators list — show BTC badge if they have a BTC address
+  const fullRes = await msg("CREATOR_GET_FULL");
+  const creatorsFull = fullRes.success ? fullRes.data : {};
+
   const list = $("creators-list");
-  list.innerHTML = Object.entries(creators).map(([u, a]) =>
-    `<div class="list-item"><span class="name">${u}</span><a href="${addrUrl(a, currentChain)}" target="_blank" class="detail">${shortAddr(a)} ↗</a></div>`
-  ).join("") || '<div class="hint">No creators registered</div>';
+  list.innerHTML = Object.entries(creators).map(([u, a]) => {
+    const full = creatorsFull[u];
+    const btcTag = full?.btcAddress ? ` <span class="btc-badge">₿</span>` : "";
+    return `<div class="list-item"><span class="name">${u}${btcTag}</span><a href="${addrUrl(a, currentChain)}" target="_blank" class="detail">${shortAddr(a)} ↗</a></div>`;
+  }).join("") || '<div class="hint">No creators registered</div>';
 
   // Dropdowns
   const options = Object.keys(creators).map((u) => `<option value="${u}">${u}</option>`).join("");
   $("tip-creator").innerHTML = `<option value="">select creator...</option>${options}`;
   $("budget-creator").innerHTML = `<option value="">select creator...</option>${options}`;
   $("split-creator").innerHTML = `<option value="">select creator...</option>${options}`;
+  $("btc-tip-creator").innerHTML = `<option value="">select creator...</option>${options}`;
 
   // Budgets
   const budgetsRes = await msg("BUDGET_GET_ALL");
@@ -727,11 +777,14 @@ async function refreshHistory() {
 
 async function refreshConnections() {
   const store = await new Promise((r) => chrome.storage.local.get(null, r));
+  const btcRes = await msg("BTC_STATUS");
+  const btcAvail = btcRes.success && btcRes.data.available;
   const items = [
     { name: "WDK Wallet", ok: !!store.walletAddress, detail: store.walletAddress ? shortAddr(store.walletAddress) : "Not connected" },
+    { name: "BTC Wallet", ok: btcAvail, detail: btcAvail ? shortAddr(btcRes.data.address) : "Not available" },
     { name: "Rumble API", ok: !!store.rumbleApiKey, detail: store.rumbleUsername ? `@${store.rumbleUsername}` : "Not connected" },
     { name: "Chain", ok: true, detail: (store.walletChain || "sepolia").toUpperCase() },
-    { name: "USDt Token", ok: true, detail: "Tether WDK" },
+    { name: "Tokens", ok: true, detail: btcAvail ? "USDt + BTC" : "USDt (Tether WDK)" },
   ];
 
   $("connections-list").innerHTML = items.map((c) =>

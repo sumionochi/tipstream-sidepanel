@@ -889,3 +889,16 @@
      font-size: 12px;
      padding: 0 4px;
    }
+   
+   /* ═══ BTC ═══ */
+   .btc-badge {
+     font-family: var(--mono);
+     font-size: 10px;
+     font-weight: 700;
+     padding: 1px 5px;
+     border-radius: 3px;
+     background: rgba(247,147,26,0.15);
+     color: #F7931A;
+     border: 1px solid rgba(247,147,26,0.3);
+     margin-left: 4px;
+   }

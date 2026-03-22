@@ -13,6 +13,7 @@
   let currentVideoId = null;
   let currentCreatorName = null;
   let currentCreatorAddress = null;
+  let currentCreatorBtcAddress = null;
   let watchStartTime = null;
   let totalWatchSeconds = 0;
   let isWatching = false;
@@ -308,7 +309,7 @@
           } catch (e) {}
         }
 
-        // Priority: polygon+usdt > polygon > any
+        // Priority: polygon+usdt > polygon > any EVM
         var chosen = null;
         for (var m = 0; m < networks.length; m++) {
           if (networks[m].blockchain === "polygon" && networks[m].currency === "usdt") { chosen = networks[m]; break; }
@@ -318,11 +319,24 @@
             if (networks[n].blockchain === "polygon") { chosen = networks[n]; break; }
           }
         }
-        if (!chosen && networks.length > 0) chosen = networks[0];
+        if (!chosen) {
+          for (var p = 0; p < networks.length; p++) {
+            if (networks[p].blockchain !== "bitcoin") { chosen = networks[p]; break; }
+          }
+        }
+
+        // Also grab BTC address if available
+        for (var q = 0; q < networks.length; q++) {
+          if (networks[q].blockchain === "bitcoin" && networks[q].address) {
+            currentCreatorBtcAddress = networks[q].address;
+            bgLog("BTC: " + currentCreatorBtcAddress);
+            break;
+          }
+        }
 
         if (chosen) {
           currentCreatorAddress = chosen.address;
-          bgLog("Wallet: " + currentCreatorAddress + " (" + (chosen.blockchain || "?") + ")");
+          bgLog("Wallet: " + currentCreatorAddress + " (" + (chosen.blockchain || "?") + ")" + (currentCreatorBtcAddress ? " | BTC: " + currentCreatorBtcAddress : ""));
           notifyBackground();
           return;
         }
@@ -361,7 +375,7 @@
   function notifyBackground() {
     safeSend({
       type: "CREATOR_DETECTED",
-      data: { videoId: currentVideoId, creatorName: currentCreatorName, creatorAddress: currentCreatorAddress },
+      data: { videoId: currentVideoId, creatorName: currentCreatorName, creatorAddress: currentCreatorAddress, btcAddress: currentCreatorBtcAddress },
     });
   }
 
@@ -442,6 +456,7 @@
             videoId: currentVideoId,
             creatorName: currentCreatorName,
             creatorAddress: currentCreatorAddress,
+            btcAddress: currentCreatorBtcAddress,
             watchSeconds: Math.floor(currentSeconds),
             videoDuration: videoElement ? videoElement.duration || 0 : 0,
           },
@@ -461,6 +476,7 @@
         videoId: currentVideoId,
         creatorName: currentCreatorName,
         creatorAddress: currentCreatorAddress,
+        btcAddress: currentCreatorBtcAddress,
         totalWatchSeconds: Math.floor(totalWatchSeconds),
       },
     });
@@ -625,6 +641,7 @@
     currentVideoId = null;
     currentCreatorName = null;
     currentCreatorAddress = null;
+    currentCreatorBtcAddress = null;
     totalWatchSeconds = 0;
     isWatching = false;
     watchStartTime = null;

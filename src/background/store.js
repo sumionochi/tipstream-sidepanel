@@ -182,15 +182,17 @@ export async function saveBudget(budget) {
 
 // ── Creators ──
 
-export async function setCreator(username, address) {
+export async function setCreator(username, address, btcAddress) {
   const store = await getStore();
   const creators = { ...(store.creators || {}) };
-  // Support both old format (string) and new (object with splits)
   const existing = creators[username];
   if (existing && typeof existing === "object") {
-    creators[username] = { ...existing, address };
+    creators[username] = { ...existing, address: address || existing.address };
+    if (btcAddress) creators[username].btcAddress = btcAddress;
+  } else if (existing && typeof existing === "string") {
+    creators[username] = { address: address || existing, splits: [], btcAddress: btcAddress || null };
   } else {
-    creators[username] = { address, splits: [] };
+    creators[username] = { address, splits: [], btcAddress: btcAddress || null };
   }
   await setStore({ creators });
 }
@@ -208,14 +210,13 @@ export async function getCreatorFull(username) {
   const store = await getStore();
   const entry = (store.creators || {})[username];
   if (!entry) return null;
-  if (typeof entry === "string") return { address: entry, splits: [] };
-  return entry;
+  if (typeof entry === "string") return { address: entry, splits: [], btcAddress: null };
+  return { address: entry.address, splits: entry.splits || [], btcAddress: entry.btcAddress || null };
 }
 
 export async function getAllCreators() {
   const store = await getStore();
   const raw = store.creators || {};
-  // Normalize to { username: address } for backward compat
   const result = {};
   for (const [u, v] of Object.entries(raw)) {
     result[u] = typeof v === "string" ? v : v.address;
@@ -228,7 +229,7 @@ export async function getAllCreatorsFull() {
   const raw = store.creators || {};
   const result = {};
   for (const [u, v] of Object.entries(raw)) {
-    result[u] = typeof v === "string" ? { address: v, splits: [] } : v;
+    result[u] = typeof v === "string" ? { address: v, splits: [], btcAddress: null } : { address: v.address, splits: v.splits || [], btcAddress: v.btcAddress || null };
   }
   return result;
 }

@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════
 // TipStream Extension — WDK Wallet
-// Tether WDK integration for Chrome extension
-// Uses webpack polyfills for sodium/buffer/crypto
+// EVM (Polygon/Arb/ETH/Sepolia) + Bitcoin via Tether WDK
 // ═══════════════════════════════════════════
 
 import WDK from "@tetherto/wdk";
@@ -9,11 +8,24 @@ import WalletManagerEvm from "@tetherto/wdk-wallet-evm";
 import { CHAINS, TOKENS, DEFAULT_CHAIN } from "./config.js";
 import { getKey, setStore } from "./store.js";
 
+// Try to import BTC — may fail if dep not installed yet
+let WalletManagerBtc = null;
+let ElectrumWs = null;
+try {
+  const btcModule = require("@tetherto/wdk-wallet-btc");
+  WalletManagerBtc = btcModule.default || btcModule;
+  ElectrumWs = btcModule.ElectrumWs;
+} catch (_) {
+  console.warn("[WDK] wdk-wallet-btc not available — BTC disabled");
+}
+
 // ── State ──
 
 let wdkInstance = null;
-let accountInstance = null;
-let cachedAddress = null;
+let accountInstance = null;   // EVM account
+let btcAccount = null;        // BTC account
+let cachedAddress = null;     // EVM address
+let cachedBtcAddress = null;  // BTC address
 
 // ── Init ──
 
@@ -25,7 +37,8 @@ export async function initWallet(seed) {
   const chain = (await getKey("walletChain")) || DEFAULT_CHAIN;
   const rpcUrl = CHAINS[chain]?.rpcUrl || CHAINS.sepolia.rpcUrl;
 
-  console.log(`[WDK] Initializing wallet on ${chain} (${rpcUrl})`);
+  // ── EVM init (always) ──
+  console.log(`[WDK] Initializing EVM wallet on ${chain} (${rpcUrl})`);
 
   wdkInstance = new WDK(seed).registerWallet("evm", WalletManagerEvm, {
     provider: rpcUrl,
@@ -33,16 +46,39 @@ export async function initWallet(seed) {
 
   accountInstance = await wdkInstance.getAccount("evm", 0);
   cachedAddress = await accountInstance.getAddress();
+  console.log(`[WDK] EVM wallet ready: ${cachedAddress}`);
+
+  // ── BTC init (optional, graceful fail) ──
+  if (WalletManagerBtc && ElectrumWs) {
+    try {
+      const electrumClient = new ElectrumWs({
+        host: "electrum.blockstream.info",
+        port: 50004,
+      });
+      const btcManager = new WalletManagerBtc(seed, {
+        client: electrumClient,
+        network: "bitcoin",
+      });
+      btcAccount = await btcManager.getAccount(0);
+      cachedBtcAddress = await btcAccount.getAddress();
+      console.log(`[WDK] BTC wallet ready: ${cachedBtcAddress}`);
+    } catch (err) {
+      console.warn(`[WDK] BTC init failed (non-fatal): ${err.message}`);
+      btcAccount = null;
+      cachedBtcAddress = null;
+    }
+  }
 
   // Persist
   await setStore({
     walletSeed: seed,
     walletAddress: cachedAddress,
+    walletBtcAddress: cachedBtcAddress || "",
     walletChain: chain,
   });
 
-  console.log(`[WDK] Wallet ready: ${cachedAddress}`);
-  return { address: cachedAddress, chain };
+  console.log(`[WDK] Wallet ready: ${cachedAddress}` + (cachedBtcAddress ? ` | BTC: ${cachedBtcAddress}` : ""));
+  return { address: cachedAddress, btcAddress: cachedBtcAddress || null, chain };
 }
 
 export async function restoreWallet() {
@@ -62,8 +98,16 @@ export function isReady() {
   return !!accountInstance && !!cachedAddress;
 }
 
+export function isBtcReady() {
+  return !!btcAccount && !!cachedBtcAddress;
+}
+
 export function getAddress() {
   return cachedAddress;
+}
+
+export function getBtcAddress() {
+  return cachedBtcAddress;
 }
 
 // ── Balance ──
@@ -74,6 +118,7 @@ export async function getBalances() {
   const chain = (await getKey("walletChain")) || DEFAULT_CHAIN;
   let balanceETH = "0";
   let balanceUSDT = "0";
+  let balanceBTC = "0";
 
   try {
     const native = await accountInstance.getBalance();
@@ -92,7 +137,23 @@ export async function getBalances() {
     console.warn("[WDK] USDt balance error:", err.message);
   }
 
-  return { address: cachedAddress, balanceETH, balanceUSDT, chain };
+  // BTC balance
+  if (btcAccount) {
+    try {
+      const btcBal = await btcAccount.getBalance();
+      balanceBTC = (Number(btcBal) / 1e8).toFixed(8);
+    } catch (err) {
+      console.warn("[WDK] BTC balance error:", err.message);
+    }
+  }
+
+  return {
+    address: cachedAddress,
+    btcAddress: cachedBtcAddress || null,
+    balanceETH, balanceUSDT, balanceBTC,
+    chain,
+    btcAvailable: !!btcAccount,
+  };
 }
 
 // ── Transfer ──
@@ -145,6 +206,57 @@ export async function sendTip(recipientAddress, amountUSDT, creatorUsername, tri
       timestamp: Date.now(),
       status: "failed",
       chain,
+      error: err.message,
+    };
+  }
+}
+
+/**
+ * Send BTC tip via WDK Bitcoin wallet
+ */
+export async function sendBtcTip(recipientBtcAddress, amountBTC, creatorUsername, trigger) {
+  if (!btcAccount) throw new Error("BTC wallet not initialized");
+
+  const fromAddress = cachedBtcAddress;
+  const satoshis = BigInt(Math.floor(amountBTC * 1e8));
+
+  console.log(`[WDK] BTC Tipping ${amountBTC} BTC to ${recipientBtcAddress} (${creatorUsername})`);
+
+  try {
+    const result = await btcAccount.sendTransaction({
+      to: recipientBtcAddress,
+      value: satoshis,
+    });
+
+    console.log(`[WDK] BTC Tip confirmed! TxID: ${result.hash || result.txid}`);
+
+    return {
+      id: `tip_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      fromAddress,
+      toAddress: recipientBtcAddress,
+      amount: amountBTC.toFixed(8),
+      txHash: result.hash || result.txid || "",
+      creatorUsername,
+      triggerReason: trigger,
+      timestamp: Date.now(),
+      status: "confirmed",
+      chain: "bitcoin",
+      token: "BTC",
+    };
+  } catch (err) {
+    console.error(`[WDK] BTC Tip failed:`, err.message);
+    return {
+      id: `tip_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      fromAddress,
+      toAddress: recipientBtcAddress,
+      amount: amountBTC.toFixed(8),
+      txHash: "",
+      creatorUsername,
+      triggerReason: trigger,
+      timestamp: Date.now(),
+      status: "failed",
+      chain: "bitcoin",
+      token: "BTC",
       error: err.message,
     };
   }

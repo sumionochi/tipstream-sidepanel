@@ -7,6 +7,7 @@ module.exports = {
 
   entry: {
     background: "./src/background/service-worker.js",
+    content: "./src/content/content.js",
     sidebar: "./src/sidebar/sidebar.js",
   },
 

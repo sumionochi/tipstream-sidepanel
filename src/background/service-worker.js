@@ -6,8 +6,8 @@
 // ═══════════════════════════════════════════
 
 import {
-  initWallet, restoreWallet, isReady, getBalances,
-  sendTip, sendSplitTip, switchChain, generateSeed, getAddress,
+  initWallet, restoreWallet, isReady, isBtcReady, getBalances,
+  sendTip, sendBtcTip, sendSplitTip, switchChain, generateSeed, getAddress, getBtcAddress,
 } from "./wallet.js";
 import {
   getStore, setStore, setKey, getKey,
@@ -175,6 +175,22 @@ async function handleMessage(msg, sender) {
       return { success: true, data: await getTips(data?.limit || 20) };
     }
 
+    // ═══ BTC TIPS ═══
+    case "BTC_TIP_SEND": {
+      if (!isBtcReady()) return { success: false, error: "BTC wallet not initialized" };
+      if (!data.btcAddress || !data.btcAddress.startsWith("bc1")) return { success: false, error: "Invalid BTC address (need bc1... bech32)" };
+      const btcAmt = parseFloat(data.amount);
+      if (btcAmt <= 0) return { success: false, error: "Invalid amount" };
+      console.log(`[BTC] Manual BTC tip: ${btcAmt} BTC to ${data.btcAddress} (${data.creatorUsername})`);
+      const tx = await sendBtcTip(data.btcAddress, btcAmt, data.creatorUsername, "manual");
+      tx.aiMode = "rules"; tx.aiConfidence = 1; tx.aiReasoning = "Manual BTC tip";
+      await addTip(tx);
+      return { success: true, data: tx };
+    }
+    case "BTC_STATUS": {
+      return { success: true, data: { available: isBtcReady(), address: getBtcAddress() || null } };
+    }
+
     // ═══ BUDGETS ═══
     case "BUDGET_SAVE": {
       const existing = await getOrCreateBudget(data.creatorUsername);
@@ -235,8 +251,8 @@ async function handleMessage(msg, sender) {
       if (creatorName && creatorAddress && /^0x[a-fA-F0-9]{40}$/.test(creatorAddress)) {
         const existing = await getCreator(creatorName);
         if (!existing) {
-          await setCreator(creatorName, creatorAddress);
-          console.log(`[Agent] Auto-registered: ${creatorName} → ${creatorAddress}`);
+          await setCreator(creatorName, creatorAddress, data.btcAddress || null);
+          console.log(`[Agent] Auto-registered: ${creatorName} → ${creatorAddress}${data.btcAddress ? " | BTC: " + data.btcAddress : ""}`);
         }
       }
 
@@ -459,21 +475,26 @@ async function handleMessage(msg, sender) {
 
     // ═══ CREATOR_DETECTED (from content script HTMX extraction) ═══
     case "CREATOR_DETECTED": {
-      if (data.creatorName && data.creatorAddress && /^0x[a-fA-F0-9]{40}$/.test(data.creatorAddress)) {
-        await setCreator(data.creatorName, data.creatorAddress);
-        console.log(`[TipStream] Creator: ${data.creatorName} → ${data.creatorAddress}`);
+      const detName = data.creatorName || data.username;
+      const detAddr = data.creatorAddress || data.address;
+      const detBtc = data.btcAddress || null;
+
+      if (detName && detAddr && /^0x[a-fA-F0-9]{40}$/.test(detAddr)) {
+        await setCreator(detName, detAddr, detBtc);
+        console.log(`[TipStream] Creator: ${detName} → ${detAddr}${detBtc ? " | BTC: " + detBtc : ""}`);
+      } else if (detName && detBtc) {
+        // Only BTC address (no EVM)
+        await setCreator(detName, null, detBtc);
+        console.log(`[TipStream] Creator (BTC only): ${detName} → ${detBtc}`);
       }
-      // Also accept old format for backwards compat
-      if (data.username && data.address && /^0x[a-fA-F0-9]{40}$/.test(data.address)) {
-        await setCreator(data.username, data.address);
-        console.log(`[TipStream] Creator: ${data.username} → ${data.address}`);
-      }
-      if (data.creatorName || data.username) {
+
+      if (detName) {
         const csStore = await getStore();
         const csSessions = { ...(csStore.watchSessions || {}) };
         csSessions["detected"] = {
-          creator: data.creatorName || data.username,
-          creatorAddress: data.creatorAddress || data.address || null,
+          creator: detName,
+          creatorAddress: detAddr || null,
+          btcAddress: detBtc,
           lastUpdate: Date.now(), watchSeconds: 0,
         };
         await setKey("watchSessions", csSessions);
